@@ -1,0 +1,7 @@
+{
+    "rust-analyzer.cargo.extraEnv": {
+        "ENDPOINT": "https://<nextcloud-url>/apps/maps/api/1.0/devices",
+        "USER": "",
+        "PASSWORD": ""
+    }
+}
