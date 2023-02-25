@@ -1,9 +1,21 @@
+use std::{collections::HashMap, fs::File};
+
 #[macro_use]
 extern crate rocket;
+#[macro_use]
+extern crate lazy_static;
+
+use rocket::{
+    http::Status,
+    tokio::time::{sleep, Duration},
+};
+use serde::Deserialize;
+use std::io::read_to_string;
+use toml::from_str;
 
 #[derive(FromForm, Debug)]
 struct TraccarDeviceUpdate {
-    id: u64,
+    id: String,
     timestamp: u64,
     lat: f32,
     lon: f32,
@@ -14,17 +26,49 @@ struct TraccarDeviceUpdate {
     batt: f32,
 }
 
-const ENDPOINT: &str = std::env!("ENDPOINT");
-const USER: &str = std::env!("USER");
-const PASSWORD: &str = std::env!("PASSWORD");
+#[derive(Deserialize)]
+struct Config {
+    endpoint: String,
+    user: String,
+    password: String,
+    tarpit_sleep_s: u64,
+    devices: HashMap<String, String>,
+}
+
+lazy_static! {
+    static ref CONFIG: Config =
+        from_str(&read_to_string(File::open("config.toml").unwrap()).unwrap()).unwrap();
+}
+
+async fn tarpit_sleep<T>() -> Option<T> {
+    sleep(Duration::from_secs(CONFIG.tarpit_sleep_s)).await;
+    None
+}
+
+async fn get_device_name<'a>(id: String) -> Option<&'a str> {
+    let device_name = match CONFIG.devices.get(&id) {
+        Some(device_name) => device_name,
+        None => {
+            // Prevent brute-forcing the ID
+            return tarpit_sleep().await;
+        }
+    };
+
+    return Some(device_name);
+}
 
 #[post("/devices?<update..>")]
-async fn update_device_location(update: TraccarDeviceUpdate) -> &'static str {
+async fn update_device_location(update: TraccarDeviceUpdate) -> (Status, &'static str) {
+    let device_name = match get_device_name(update.id).await {
+        Some(device_name) => device_name,
+        None => return (Status::Unauthorized, "Wrong"),
+    };
     let client = reqwest::Client::new();
     let result = client
-        .post(ENDPOINT)
-        .basic_auth(USER, Some(PASSWORD))
-        .query(&[("user_agent", update.id), ("timestamp", update.timestamp)])
+        .post(&CONFIG.endpoint)
+        .basic_auth(&CONFIG.user, Some(&CONFIG.password))
+        .query(&[("user_agent", device_name)])
+        .query(&[("timestamp", update.timestamp)])
         .query(&[
             ("lat", update.lat),
             ("lng", update.lon),
@@ -40,16 +84,18 @@ async fn update_device_location(update: TraccarDeviceUpdate) -> &'static str {
     match result {
         Ok(succ) => {
             println!("{}", succ.url());
-            "Success!"
+            (Status::Ok, "Success")
         }
         Err(err) => {
             dbg!("{}", err);
-            "Failure!"
+            (Status::BadGateway, "Failure")
         }
     }
 }
 
 #[launch]
 fn rocket() -> _ {
+    // This log line is only necessary to immediately parse the config file on startup
+    println!("Will forward requests to {}", CONFIG.endpoint);
     rocket::build().mount("/", routes![update_device_location])
 }

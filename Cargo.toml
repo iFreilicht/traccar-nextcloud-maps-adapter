@@ -2,9 +2,13 @@
 name = "traccar-nextcloud-maps-adapter"
 version = "0.1.0"
 edition = "2021"
+rust-version = "1.65.0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 rocket = "0.5.0-rc.2"
 reqwest = "0.11.14"
+toml = "0.7.2"
+serde = { version = "1.0.152",  features = ["derive"] }
+lazy_static = "1.4.0"

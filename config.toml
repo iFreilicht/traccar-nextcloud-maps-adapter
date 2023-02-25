@@ -1,0 +1,10 @@
+user = "<user>"
+password =  "<password>"
+endpoint = "https://<server-url>/apps/maps/api/1.0/devices"
+tarpit_sleep_s = 10
+
+[devices]
+AAAAAAAAAAAAAAA = "test-device"
+19082382378 = "Android Phone"
+09293891923894 = "iPad"
+CustomSecretID = "Teapot"
